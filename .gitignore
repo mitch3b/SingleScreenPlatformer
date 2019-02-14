@@ -1,0 +1,14 @@
+# NES specific
+*.nes
+*.nes.deb
+*.o
+*.s
+vars.txt
+!asm4c.s
+!reset.s
+!release/*.nes
+!Music/famitone4.s
+!Music/NesPlatformerTemplate.s
+!Music/SoundFx.s
+# Other
+.DS_Store
