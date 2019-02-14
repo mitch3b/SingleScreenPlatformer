@@ -8,7 +8,6 @@ vars.txt
 !reset.s
 !release/*.nes
 !Music/famitone4.s
-!Music/NesPlatformerTemplate.s
-!Music/SoundFx.s
+!Music/*.s
 # Other
 .DS_Store
