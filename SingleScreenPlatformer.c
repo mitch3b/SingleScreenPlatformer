@@ -22,6 +22,12 @@ signed char isWalking;
 //POWERUPS
 unsigned char powerUpState;
 
+//Shots
+#define SHOT_TIMER_TIMEOUT 15
+#define BULLET_VELOCITY 2
+unsigned char reloadShotTimer;
+unsigned char isBulletInFlight;
+
 #pragma bss-name (pop)
 #pragma bss-name (push, "BSS")
 
@@ -100,6 +106,19 @@ void loadCollisionFromNametables(void)
 void preMovementUpdates(void) {
   if((joypad1 & SELECT) != 0 && (joypad1old & SELECT) == 0) {
     powerUpState = (powerUpState + 1) % NUM_POWERUPS;
+  }
+  
+  if(powerUpState == POWERUP_SHOOT) {
+    if(SPRITES[POWERUP_SPRITE_INDEX + 6] == 0) {
+      //Moving right
+      SPRITES[POWERUP_SPRITE_INDEX + 7] += BULLET_VELOCITY;
+    }
+    else {
+      //Moving Left
+      SPRITES[POWERUP_SPRITE_INDEX + 7] -= BULLET_VELOCITY;
+    }
+    
+    //Collision or offscreen??
   }
 }
 
@@ -222,12 +241,9 @@ void updateSprites(void) {
     SPRITES[MAIN_CHAR_SPRITE_INDEX + 1] = 0;
   }
 
-
+  // Do Powerup updates
   if(powerUpState == POWERUP_SHOOT) {
-    temp1 = SPRITES[MAIN_CHAR_SPRITE_INDEX];
-    SPRITES[POWERUP_SPRITE_INDEX] = temp1; //Same Y
-
-    SPRITES[POWERUP_SPRITE_INDEX + 1] = 0x10;
+    SPRITES[POWERUP_SPRITE_INDEX] = SPRITES[MAIN_CHAR_SPRITE_INDEX]; //Same Y
 
     if(SPRITES[MAIN_CHAR_SPRITE_INDEX + 2] == 0x00) {
       //Facing right
@@ -237,6 +253,22 @@ void updateSprites(void) {
     else {
       SPRITES[POWERUP_SPRITE_INDEX + 2] = SPRITES[MAIN_CHAR_SPRITE_INDEX + 2];
       SPRITES[POWERUP_SPRITE_INDEX + 3] = SPRITES[MAIN_CHAR_SPRITE_INDEX + 3] - 7;
+    }
+	
+    if(reloadShotTimer != 0) {
+      --reloadShotTimer;
+    }
+    else if((joypad1 & B_BUTTON) != 0 && (joypad1old & B_BUTTON) == 0) {
+      SPRITES[POWERUP_SPRITE_INDEX + 1] = 0x11;
+      reloadShotTimer = SHOT_TIMER_TIMEOUT;
+      isBulletInFlight = 1;
+      SPRITES[POWERUP_SPRITE_INDEX + 4] = SPRITES[POWERUP_SPRITE_INDEX] - 1; //Y
+      SPRITES[POWERUP_SPRITE_INDEX + 5] = 0x12; //Sprite
+      SPRITES[POWERUP_SPRITE_INDEX + 6] = 0x00; //Attributes
+      SPRITES[POWERUP_SPRITE_INDEX + 7] = SPRITES[POWERUP_SPRITE_INDEX + 3] + 4; //X
+    }
+    else {
+      SPRITES[POWERUP_SPRITE_INDEX + 1] = 0x10;
     }
   }
   else {
