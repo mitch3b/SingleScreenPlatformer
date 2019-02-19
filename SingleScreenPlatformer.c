@@ -113,6 +113,14 @@ void loadCollisionFromNametables(void)
 
 void preMovementUpdates(void) {
   if((joypad1 & SELECT) != 0 && (joypad1old & SELECT) == 0) {
+    //Turn off current powerup
+    if(powerUpState == POWERUP_SHOOT) {
+      SPRITES[POWERUP_SPRITE_INDEX + 4] = 0;
+      SPRITES[POWERUP_SPRITE_INDEX + 7] = 0;
+      isBulletInFlight = 0;
+      reloadShotTimer = 0;
+    }
+
     powerUpState = (powerUpState + 1) % NUM_POWERUPS;
   }
 
@@ -318,6 +326,10 @@ void updateSprites(void) {
       SPRITES[POWERUP_SPRITE_INDEX + 3] = SPRITES[MAIN_CHAR_SPRITE_INDEX + 3] - 7;
     }
 
+    if(reloadShotTimer != 0) {
+      --reloadShotTimer;
+    }
+
     if(isBulletInFlight == 0) {
       if(reloadShotTimer == 0 && (joypad1 & B_BUTTON) != 0 && (joypad1old & B_BUTTON) == 0) {
         SPRITES[POWERUP_SPRITE_INDEX + 1] = 0x11;
@@ -338,19 +350,14 @@ void updateSprites(void) {
         }
       }
       else {
-        if(reloadShotTimer != 0) {
-          --reloadShotTimer;
-        }
-        
+
         SPRITES[POWERUP_SPRITE_INDEX + 1] = 0x10;
         SPRITES[POWERUP_SPRITE_INDEX + 4] = 0;
         SPRITES[POWERUP_SPRITE_INDEX + 7] = 0;
       }
     }
-    else if(reloadShotTimer != 0) {
-      --reloadShotTimer;
-    }
-    else {
+    else if(reloadShotTimer == 0) {
+      //Put gun back down
       SPRITES[POWERUP_SPRITE_INDEX + 1] = 0x10;
     }
   }
