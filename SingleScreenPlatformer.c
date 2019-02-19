@@ -25,6 +25,13 @@ unsigned char powerUpState;
 //Shots
 #define SHOT_TIMER_TIMEOUT 15
 #define BULLET_VELOCITY 2
+#define BULLET_OFFSET_X 0
+#define BULLET_OFFSET_X_LEFT 5
+#define BULLET_OFFSET_Y 3
+#define BULLET_WIDTH 2
+#define BULLET_HEIGHT 2
+
+//Need this per bullet?
 unsigned char reloadShotTimer;
 unsigned char isBulletInFlight;
 
@@ -80,6 +87,7 @@ void main (void) {
       preMovementUpdates();
       applyX();
       applyY();
+      postMovementUpdates();
       updateSprites();
     }
 
@@ -107,8 +115,8 @@ void preMovementUpdates(void) {
   if((joypad1 & SELECT) != 0 && (joypad1old & SELECT) == 0) {
     powerUpState = (powerUpState + 1) % NUM_POWERUPS;
   }
-  
-  if(powerUpState == POWERUP_SHOOT) {
+
+  if(powerUpState == POWERUP_SHOOT && isBulletInFlight == 1) {
     if(SPRITES[POWERUP_SPRITE_INDEX + 6] == 0) {
       //Moving right
       SPRITES[POWERUP_SPRITE_INDEX + 7] += BULLET_VELOCITY;
@@ -117,7 +125,7 @@ void preMovementUpdates(void) {
       //Moving Left
       SPRITES[POWERUP_SPRITE_INDEX + 7] -= BULLET_VELOCITY;
     }
-    
+
     //Collision or offscreen??
   }
 }
@@ -141,8 +149,7 @@ void applyX(void) {
   }
 
   //Test X collision
-  putCharInBackgroundVars();
-  if(isBackgroundCollision() == 0) {
+  if(isBackgroundCollisionMainChar() == 0) {
     SPRITES[MAIN_CHAR_SPRITE_INDEX + 3] = newX;
   }
   else {
@@ -169,8 +176,7 @@ void applyY(void) {
   newY = SPRITES[MAIN_CHAR_SPRITE_INDEX] + tempSigned;
 
   //Test Y collision
-  putCharInBackgroundVars();
-  if(isBackgroundCollision() == 0) {
+  if(isBackgroundCollisionMainChar() == 0) {
     //Because of subpixels, want to make sure we're actually moving
     if(SPRITES[MAIN_CHAR_SPRITE_INDEX] != newY) {
       SPRITES[MAIN_CHAR_SPRITE_INDEX] = newY;
@@ -194,6 +200,27 @@ void applyY(void) {
   }
 }
 
+void postMovementUpdates(void) {
+  //Do powerup collision
+  if(isBulletInFlight == 1) {
+      if(SPRITES[POWERUP_SPRITE_INDEX + 6] == 0) {
+        //Facing right
+        collisionX = SPRITES[POWERUP_SPRITE_INDEX + 7] + BULLET_OFFSET_X;
+      }
+      else {
+        collisionX = SPRITES[POWERUP_SPRITE_INDEX + 7] + BULLET_OFFSET_X_LEFT;
+      }
+
+      collisionY = SPRITES[POWERUP_SPRITE_INDEX + 4] + BULLET_OFFSET_Y;
+      collisionWidth = BULLET_WIDTH;
+      collisionHeight = BULLET_HEIGHT;
+
+      if(isBackgroundCollision() != 0) {
+        isBulletInFlight = 0;
+      }
+  }
+}
+
 void putCharInBackgroundVars(void) {
   collisionX = newX;
   collisionY = newY;
@@ -202,6 +229,42 @@ void putCharInBackgroundVars(void) {
 }
 
 char isBackgroundCollision(void) {
+  temp1 = collisionX >> 3;
+  temp2 = collisionY >> 3;
+  tempInt = 32*temp2 + temp1;
+
+  if(collision[tempInt] == 0) {
+    //More efficient ways than calculating all these
+    temp1 = (collisionX + collisionWidth - 1) >> 3;
+    temp2 = (collisionY) >> 3;
+    tempInt = 32*temp2 + temp1;
+    if(collision[tempInt] != 0) {
+      return 1;
+    }
+
+    temp1 = (collisionX) >> 3;
+    temp2 = (collisionY + collisionHeight - 1) >> 3;
+    tempInt = 32*temp2 + temp1;
+    if(collision[tempInt] != 0) {
+      return 1;
+    }
+
+    temp1 = (collisionX + collisionWidth -1) >> 3;
+    temp2 = (collisionY + collisionHeight - 1) >> 3;
+    tempInt = 32*temp2 + temp1;
+    if(collision[tempInt] != 0) {
+      return 1;
+    }
+  }
+  else {
+    return 1;
+  }
+
+  return 0;
+}
+
+//Useful bc main char is 8x8
+char isBackgroundCollisionMainChar(void) {
   temp1 = newX >> 3;
   temp2 = newY >> 3;
   tempInt = 32*temp2 + temp1;
@@ -254,18 +317,34 @@ void updateSprites(void) {
       SPRITES[POWERUP_SPRITE_INDEX + 2] = SPRITES[MAIN_CHAR_SPRITE_INDEX + 2];
       SPRITES[POWERUP_SPRITE_INDEX + 3] = SPRITES[MAIN_CHAR_SPRITE_INDEX + 3] - 7;
     }
-	
-    if(reloadShotTimer != 0) {
-      --reloadShotTimer;
+
+    if(isBulletInFlight == 0) {
+      if((joypad1 & B_BUTTON) != 0 && (joypad1old & B_BUTTON) == 0) {
+        SPRITES[POWERUP_SPRITE_INDEX + 1] = 0x11;
+        reloadShotTimer = SHOT_TIMER_TIMEOUT;
+        isBulletInFlight = 1;
+        SPRITES[POWERUP_SPRITE_INDEX + 4] = SPRITES[POWERUP_SPRITE_INDEX] - 1; //Y
+        SPRITES[POWERUP_SPRITE_INDEX + 5] = 0x12; //Sprite
+        SPRITES[POWERUP_SPRITE_INDEX + 6] = SPRITES[POWERUP_SPRITE_INDEX + 2]; //Attributes
+
+        //Face the bullet in the same direction as gun.
+        SPRITES[POWERUP_SPRITE_INDEX + 6] = SPRITES[POWERUP_SPRITE_INDEX + 2]; //Attributes
+        if(SPRITES[POWERUP_SPRITE_INDEX + 2] == 0) {
+          //Facing Right
+          SPRITES[POWERUP_SPRITE_INDEX + 7] = SPRITES[POWERUP_SPRITE_INDEX + 3] + 4; //X
+        }
+        else {
+          SPRITES[POWERUP_SPRITE_INDEX + 7] = SPRITES[POWERUP_SPRITE_INDEX + 3] - 4; //X
+        }
+      }
+      else {
+        SPRITES[POWERUP_SPRITE_INDEX + 1] = 0x10;
+        SPRITES[POWERUP_SPRITE_INDEX + 4] = 0;
+        SPRITES[POWERUP_SPRITE_INDEX + 7] = 0;
+      }
     }
-    else if((joypad1 & B_BUTTON) != 0 && (joypad1old & B_BUTTON) == 0) {
-      SPRITES[POWERUP_SPRITE_INDEX + 1] = 0x11;
-      reloadShotTimer = SHOT_TIMER_TIMEOUT;
-      isBulletInFlight = 1;
-      SPRITES[POWERUP_SPRITE_INDEX + 4] = SPRITES[POWERUP_SPRITE_INDEX] - 1; //Y
-      SPRITES[POWERUP_SPRITE_INDEX + 5] = 0x12; //Sprite
-      SPRITES[POWERUP_SPRITE_INDEX + 6] = 0x00; //Attributes
-      SPRITES[POWERUP_SPRITE_INDEX + 7] = SPRITES[POWERUP_SPRITE_INDEX + 3] + 4; //X
+    else if(reloadShotTimer != 0) {
+      --reloadShotTimer;
     }
     else {
       SPRITES[POWERUP_SPRITE_INDEX + 1] = 0x10;
