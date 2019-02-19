@@ -319,7 +319,7 @@ void updateSprites(void) {
     }
 
     if(isBulletInFlight == 0) {
-      if((joypad1 & B_BUTTON) != 0 && (joypad1old & B_BUTTON) == 0) {
+      if(reloadShotTimer == 0 && (joypad1 & B_BUTTON) != 0 && (joypad1old & B_BUTTON) == 0) {
         SPRITES[POWERUP_SPRITE_INDEX + 1] = 0x11;
         reloadShotTimer = SHOT_TIMER_TIMEOUT;
         isBulletInFlight = 1;
@@ -338,6 +338,10 @@ void updateSprites(void) {
         }
       }
       else {
+        if(reloadShotTimer != 0) {
+          --reloadShotTimer;
+        }
+        
         SPRITES[POWERUP_SPRITE_INDEX + 1] = 0x10;
         SPRITES[POWERUP_SPRITE_INDEX + 4] = 0;
         SPRITES[POWERUP_SPRITE_INDEX + 7] = 0;
