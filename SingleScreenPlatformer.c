@@ -9,6 +9,12 @@
 #define MAX_VELOCITY_X 1
 #define MAX_VELOCITY_WITH_B_X 2
 
+#define ENEMY_MOVING_LEFT 0
+#define ENEMY_MOVING_RIGHT 1
+#define ENEMY_MOVE_EVERY_X_FRAMES 6
+#define ENEMY_TURN_AROUND_TIME 30
+
+
 #pragma bss-name (push, "OAM")
 unsigned char SPRITES[256];
 #pragma bss-name (pop)
@@ -18,6 +24,10 @@ signed char yVelocity;
 signed char jumpCount;
 signed char isFalling;
 signed char isWalking;
+
+//enemy info
+unsigned char enemyState;
+unsigned char enemyTimer;
 
 //POWERUPS
 unsigned char powerUpState;
@@ -112,6 +122,7 @@ void loadCollisionFromNametables(void)
 }
 
 void preMovementUpdates(void) {
+  //Powerup update
   if((joypad1 & SELECT) != 0 && (joypad1old & SELECT) == 0) {
     //Turn off current powerup
     if(powerUpState == POWERUP_SHOOT) {
@@ -136,6 +147,51 @@ void preMovementUpdates(void) {
 
     //Collision or offscreen??
   }
+
+  //Enemies update
+  // if enemy is platform walker
+  if(enemyTimer > 0) {
+    --enemyTimer;
+
+    if(enemyTimer == 0) {
+      //Once enemy has stopped "waiting at an edge", face the direction that we're gonna start moving in
+      SPRITES[ENEMIES_SPRITE_INDEX + 2] = (enemyState == ENEMY_MOVING_LEFT) ? 0x40 : 0x00;
+    }
+  }
+  else if(enemyState == ENEMY_MOVING_RIGHT) {
+    if(Frame_Count % ENEMY_MOVE_EVERY_X_FRAMES == 0) {
+      SPRITES[ENEMIES_SPRITE_INDEX + 3] += 1;
+    }
+
+    temp1 = (SPRITES[ENEMIES_SPRITE_INDEX + 3] + 4) >> 3;
+    temp2 = (SPRITES[ENEMIES_SPRITE_INDEX] + 9) >> 3;
+    tempInt = 32*temp2 + temp1;
+
+    // If we're hoving over an edge, turn around
+    if(collision[tempInt] == 0) {
+      enemyTimer = ENEMY_TURN_AROUND_TIME;
+      enemyState = ENEMY_MOVING_LEFT;
+    }
+  }
+  else if(enemyState == ENEMY_MOVING_LEFT) {
+    if(Frame_Count % ENEMY_MOVE_EVERY_X_FRAMES == 0) {
+      SPRITES[ENEMIES_SPRITE_INDEX + 3] -= 1;
+    }
+
+    temp1 = (SPRITES[ENEMIES_SPRITE_INDEX + 3] + 3) >> 3;
+    temp2 = (SPRITES[ENEMIES_SPRITE_INDEX] + 9) >> 3;
+    tempInt = 32*temp2 + temp1;
+
+    // If we're hoving over an edge, turn around
+    if(collision[tempInt] == 0) {
+      enemyTimer = ENEMY_TURN_AROUND_TIME;
+      enemyState = ENEMY_MOVING_RIGHT;
+    }
+  }
+
+  //SPRITES[ENEMIES_SPRITE_INDEX] += Frame_Count % 4;
+  SPRITES[ENEMIES_SPRITE_INDEX + 1] = 0x30 + (Frame_Count/4 % 2);
+  //SPRITES[ENEMIES_SPRITE_INDEX + 3] += Frame_Count % 2;
 }
 
 void applyX(void) {
@@ -302,6 +358,10 @@ void initSprites(void) {
   SPRITES[MAIN_CHAR_SPRITE_INDEX + 1] = MAIN_CHAR_FIRST_SPRITE; //sprite
   SPRITES[MAIN_CHAR_SPRITE_INDEX + 2] = 0x00; //attribute
   SPRITES[MAIN_CHAR_SPRITE_INDEX + 3] = 0x30; //X
+
+  SPRITES[ENEMIES_SPRITE_INDEX] = enemy1_start_y;
+  SPRITES[ENEMIES_SPRITE_INDEX + 1] = 0x30;
+  SPRITES[ENEMIES_SPRITE_INDEX + 3] = enemy1_start_x;
 }
 
 void updateSprites(void) {

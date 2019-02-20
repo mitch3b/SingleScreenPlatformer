@@ -66,6 +66,9 @@ void applyY(void);
 #define POWERUP_RUN 0
 #define POWERUP_SHOOT 1
 
+// Currently have 2 reserved for powerups
+#define ENEMIES_SPRITE_INDEX 0x0C
+
 // Prototypes
 void allOff(void);
 void allOn(void);
