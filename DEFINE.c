@@ -40,6 +40,7 @@ unsigned char temp1;
 unsigned char temp2;
 unsigned char temp3;
 unsigned char temp4;
+unsigned char temp5;
 char tempSigned;
 unsigned int tempInt;
 unsigned int tempInt2;
