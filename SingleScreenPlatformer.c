@@ -23,6 +23,8 @@ signed char yVelocity;
 signed char jumpCount;
 signed char isFalling;
 signed char isWalking;
+unsigned char spawnX;
+unsigned char spawnY;
 
 typedef struct {
   unsigned char startX;
@@ -31,10 +33,14 @@ typedef struct {
   unsigned char enemyTimer;
 } enemy_struct;
 
-#define NUM_ENEMIES 2
+#define NUM_ENEMIES 6
 enemy_struct enemies[NUM_ENEMIES] = {
-  {0x80, 0x80, 0x00, 0x00},
-  {0x58, 0x30, 0x00, 0x00}
+  {0x82, 0x80, 0x00, 0x00},
+  {0x7D, 0xC0, 0x00, 0x00},
+  {0x98, 0xA0, 0x00, 0x00},
+  {0x80, 0x30, 0x00, 0x00},
+  {0x10, 0x70, 0x00, 0x00},
+  {0x30, 0xD8, 0x00, 0x00}
 };
 
 //POWERUPS
@@ -85,10 +91,6 @@ void main (void) {
 			allOff();
 
 			loadLevel();
-      for(index = 0 ; index < 255 ; index++) {
-        collision[index] = index;
-      }
-      //UnCollision();
       loadCollisionFromNametables();
 
       initSprites();
@@ -125,7 +127,13 @@ void loadCollisionFromNametables(void)
   tempInt = *((unsigned char*)0x2007);
 
   for(tempInt = 0 ; tempInt < 960 ; tempInt++) {
-    collision[tempInt] = (*((unsigned char*)0x2007) == 0x00) ? 0x00 : 0x01;
+    temp1 = *((unsigned char*)0x2007);
+
+    collision[tempInt] = (temp1 == 0x00 || temp1 == 0x20) ? 0x00 : 0x01;
+    if(temp1 == 0x20) {
+      spawnX = 8*(tempInt % 32);
+      spawnY = 8*(tempInt/32);
+    }
   }
 }
 
@@ -177,7 +185,7 @@ void preMovementUpdates(void) {
       tempInt = 32*temp2 + temp1;
 
       // If we're hoving over an edge, turn around
-      if(collision[tempInt] == 0) {
+      if(collision[tempInt] == 0 || (SPRITES[temp4 + 3] % 8 == 0 && collision[tempInt - 31] != 0)) {
         enemies[temp3].enemyTimer = ENEMY_TURN_AROUND_TIME;
         enemies[temp3].enemyState = ENEMY_MOVING_LEFT;
       }
@@ -192,7 +200,7 @@ void preMovementUpdates(void) {
       tempInt = 32*temp2 + temp1;
 
       // If we're hoving over an edge, turn around
-      if(collision[tempInt] == 0) {
+      if(collision[tempInt] == 0 || (SPRITES[temp4 + 3] % 8 == 0 && collision[tempInt - 33] != 0)) {
         enemies[temp3].enemyTimer = ENEMY_TURN_AROUND_TIME;
         enemies[temp3].enemyState = ENEMY_MOVING_RIGHT;
       }
@@ -363,10 +371,10 @@ char isBackgroundCollisionMainChar(void) {
 }
 
 void initSprites(void) {
-  SPRITES[MAIN_CHAR_SPRITE_INDEX]     = 0x08; //Y
+  SPRITES[MAIN_CHAR_SPRITE_INDEX]     = spawnY; //Y
   SPRITES[MAIN_CHAR_SPRITE_INDEX + 1] = MAIN_CHAR_FIRST_SPRITE; //sprite
   SPRITES[MAIN_CHAR_SPRITE_INDEX + 2] = 0x00; //attribute
-  SPRITES[MAIN_CHAR_SPRITE_INDEX + 3] = 0x30; //X
+  SPRITES[MAIN_CHAR_SPRITE_INDEX + 3] = spawnX; //X
 
   temp4 = ENEMIES_SPRITE_INDEX;
   for(temp3 = 0 ; temp3 < NUM_ENEMIES ; ++temp3) {
