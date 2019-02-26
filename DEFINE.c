@@ -77,6 +77,7 @@ void resetScroll (void);
 void initSprites(void);
 void preMovementUpdates(void);
 void postMovementUpdates(void);
+void enemyCollision(void);
 void updateSprites(void);
 void putCharInBackgroundVars(void);
 char isBackgroundCollision(void);

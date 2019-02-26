@@ -31,16 +31,17 @@ typedef struct {
   unsigned char startY;
   unsigned char enemyState;
   unsigned char enemyTimer;
+  unsigned char isAlive;
 } enemy_struct;
 
 #define NUM_ENEMIES 6
 enemy_struct enemies[NUM_ENEMIES] = {
-  {0x82, 0x80, 0x00, 0x00},
-  {0x7D, 0xC0, 0x00, 0x00},
-  {0x98, 0xA0, 0x00, 0x00},
-  {0x80, 0x30, 0x00, 0x00},
-  {0x10, 0x70, 0x00, 0x00},
-  {0x30, 0xD8, 0x00, 0x00}
+  {0x82, 0x80, 0x00, 0x00, 0x01},
+  {0x7D, 0xC0, 0x00, 0x00, 0x01},
+  {0x98, 0xA0, 0x00, 0x00, 0x01},
+  {0x80, 0x30, 0x00, 0x00, 0x01},
+  {0x10, 0x70, 0x00, 0x00, 0x01},
+  {0x30, 0xD8, 0x00, 0x00, 0x01}
 };
 
 //POWERUPS
@@ -108,6 +109,7 @@ void main (void) {
       applyX();
       applyY();
       postMovementUpdates();
+      enemyCollision();
       updateSprites();
     }
 
@@ -167,12 +169,16 @@ void preMovementUpdates(void) {
   // if enemy is platform walker
   temp4 = ENEMIES_SPRITE_INDEX;
   for(temp3 = 0 ; temp3 < NUM_ENEMIES ; ++temp3) {
-    if(enemies[temp3].enemyTimer > 0) {
+    if(enemies[temp3].isAlive == 0) {
+        SPRITES[temp4 + 3]  = 0;
+        SPRITES[temp4]  = 0;
+    }
+    else if(enemies[temp3].enemyTimer > 0) {
       enemies[temp3].enemyTimer -= 1;
 
       if(enemies[temp3].enemyTimer == 0) {
         //Once enemy has stopped "waiting at an edge", face the direction that we're gonna start moving in
-        SPRITES[temp4 + 2] = (enemies[temp3].enemyState == ENEMY_MOVING_LEFT) ? 0x40 : 0x00;
+        SPRITES[temp4 + 2] = (enemies[temp3].enemyState == ENEMY_MOVING_LEFT) ? 0x43 : 0x03;
       }
     }
     else if(enemies[temp3].enemyState == ENEMY_MOVING_RIGHT) {
@@ -302,6 +308,28 @@ void postMovementUpdates(void) {
   }
 }
 
+void enemyCollision(void) {
+  temp1 = (SPRITES[POWERUP_SPRITE_INDEX + 6] == 0) ? BULLET_OFFSET_X : BULLET_OFFSET_X_LEFT;
+  temp4 = ENEMIES_SPRITE_INDEX;
+  for(temp3 = 0 ; temp3 < NUM_ENEMIES ; ++temp3) {
+    if(isBulletInFlight == 1) {
+        //TODO only checking one pixel of the gun
+        if(SPRITES[POWERUP_SPRITE_INDEX + 7] + temp1 > SPRITES[temp4 + 3] &&
+           SPRITES[POWERUP_SPRITE_INDEX + 7] + temp1 < (SPRITES[temp4 + 3] + 8) &&
+           SPRITES[POWERUP_SPRITE_INDEX + 4] + BULLET_OFFSET_Y > SPRITES[temp4] &&
+           SPRITES[POWERUP_SPRITE_INDEX + 4] + BULLET_OFFSET_Y< (SPRITES[temp4] + 8)) {
+        // Killed enemy so clean it up
+        isBulletInFlight = 0;
+        enemies[temp3].isAlive = 0;
+        SPRITES[temp4 + 3]  = 0;
+        SPRITES[temp4]  = 0;
+      }
+    }
+
+    temp4 += 4;
+  }
+}
+
 void putCharInBackgroundVars(void) {
   collisionX = newX;
   collisionY = newY;
@@ -380,6 +408,7 @@ void initSprites(void) {
   for(temp3 = 0 ; temp3 < NUM_ENEMIES ; ++temp3) {
     SPRITES[temp4] = enemies[temp3].startY;
     SPRITES[temp4 + 1] = 0x30;
+    SPRITES[temp4 + 2] = 0x03;
     SPRITES[temp4 + 3] = enemies[temp3].startX;
 
     temp4 += 4;
