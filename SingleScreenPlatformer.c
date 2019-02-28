@@ -19,13 +19,25 @@ unsigned char SPRITES[256];
 #pragma bss-name (pop)
 
 #pragma bss-name (push, "ZEROPAGE")
-signed char yVelocity;
-signed char jumpCount;
-signed char isFalling;
-signed char isWalking;
+unsigned char x1;
+unsigned char y1;
+unsigned char x2;
+unsigned char y2;
+unsigned char width1;
+unsigned char height1;
+unsigned char width2;
+unsigned char height2;
+
+// Character vars
 unsigned char spawnX;
 unsigned char spawnY;
+signed char yVelocity;
+unsigned char jumpCount;
+unsigned char isFalling;
+signed char isWalking;
+unsigned char isExploding;
 
+//Enemy info
 typedef struct {
   unsigned char startX;
   unsigned char startY;
@@ -35,7 +47,8 @@ typedef struct {
 } enemy_struct;
 
 #define NUM_ENEMIES 6
-enemy_struct enemies[NUM_ENEMIES] = {
+enemy_struct enemies[NUM_ENEMIES];
+enemy_struct enemies2[NUM_ENEMIES] = {
   {0x82, 0x80, 0x00, 0x00, 0x00},
   {0x7D, 0xC0, 0x00, 0x00, 0x00},
   {0x98, 0xA0, 0x00, 0x00, 0x00},
@@ -63,6 +76,12 @@ unsigned char isBulletInFlight;
 #pragma bss-name (pop)
 #pragma bss-name (push, "BSS")
 
+void loadEnemies(void) {
+  for(temp1 = 0 ; temp1 < NUM_ENEMIES ; ++temp1) {
+      enemies[temp1] = enemies2[temp1];
+  }
+}
+
 // 32 x 30
 // TODO should use a bit per block instead of byte, but this is a lot easier at the moment
 unsigned char collision[960];
@@ -77,9 +96,6 @@ void main (void) {
 	loadPalette();
 	resetScroll();
 
-	Reset_Music(); // note, this is famitone init, and I added the music data address. see famitone2.s
-	Play_Music(song); // song = 0
-
 	Wait_Vblank();
 	allOn(); // turn on screen
 	while (1){ // infinite loop
@@ -89,10 +105,15 @@ void main (void) {
 		Get_Input();
 
     if (gameState == 1) {
+      Reset_Music(); // note, this is famitone init, and I added the music data address. see famitone2.s
+      Play_Music(song); // song = 0
+
 			allOff();
 
 			loadLevel();
       loadCollisionFromNametables();
+      loadEnemies();
+      isExploding = 0;
 
       initSprites();
 			Wait_Vblank();
@@ -105,12 +126,29 @@ void main (void) {
       newX = SPRITES[MAIN_CHAR_SPRITE_INDEX + 3];
       newY = SPRITES[MAIN_CHAR_SPRITE_INDEX];
 
-      preMovementUpdates();
-      applyX();
-      applyY();
-      postMovementUpdates();
-      enemyCollision();
-      updateSprites();
+      if(isExploding == 0) {
+        preMovementUpdates();
+        applyX();
+        applyY();
+        postMovementUpdates();
+        enemyCollision();
+        updateSprites();
+      }
+      else if (isExploding < 6) {
+        SPRITES[MAIN_CHAR_SPRITE_INDEX + 1] = 0x0A + isExploding;
+
+        //Hide weapon
+        SPRITES[POWERUP_SPRITE_INDEX] = 0x00;
+        SPRITES[POWERUP_SPRITE_INDEX + 3] = 0x00;
+
+        if(Frame_Count % 8 == 0) {
+          ++isExploding;
+        }
+      }
+      else {
+        //Reset level
+        gameState = 1;
+      }
     }
 
     Music_Update();
@@ -316,16 +354,45 @@ void postMovementUpdates(void) {
   }
 }
 
+void takeHit(void) {
+  isExploding = 1;
+}
+
+int isCollision(void) {
+    return x1 + width1 > x2
+        && x2 + width2 > x1
+        && y1 + height1 > y2
+        && y2 + height2 > y1;
+}
+
 void enemyCollision(void) {
-  temp1 = (SPRITES[POWERUP_SPRITE_INDEX + 6] == 0) ? BULLET_OFFSET_X : BULLET_OFFSET_X_LEFT;
   temp4 = ENEMIES_SPRITE_INDEX;
   for(temp3 = 0 ; temp3 < NUM_ENEMIES ; ++temp3) {
+    // Setup enemy
+    x1 = SPRITES[temp4 + 3];
+    y1 = SPRITES[temp4];
+    width1 = 8;
+    height1 = 8;
+
+    // Check against player
+    x2 = SPRITES[MAIN_CHAR_SPRITE_INDEX + 3];
+    y2 = SPRITES[MAIN_CHAR_SPRITE_INDEX];
+    width2 = CHARACTER_WIDTH;
+    height2 = CHARACTER_HEIGHT;
+
+    if(isCollision() != 0) {
+         takeHit();
+    }
+
     if(isBulletInFlight == 1) {
-        //TODO only checking one pixel of the gun
-        if(SPRITES[POWERUP_SPRITE_INDEX + 7] + temp1 > SPRITES[temp4 + 3] &&
-           SPRITES[POWERUP_SPRITE_INDEX + 7] + temp1 < (SPRITES[temp4 + 3] + 8) &&
-           SPRITES[POWERUP_SPRITE_INDEX + 4] + BULLET_OFFSET_Y > SPRITES[temp4] &&
-           SPRITES[POWERUP_SPRITE_INDEX + 4] + BULLET_OFFSET_Y< (SPRITES[temp4] + 8)) {
+      // Check against bullet
+      temp1 = (SPRITES[POWERUP_SPRITE_INDEX + 6] == 0) ? BULLET_OFFSET_X : BULLET_OFFSET_X_LEFT;
+      x2 = SPRITES[POWERUP_SPRITE_INDEX + 7] + temp1;
+      y2 = SPRITES[POWERUP_SPRITE_INDEX + 4] + BULLET_OFFSET_Y;
+      width2 = BULLET_WIDTH;
+      height2 = BULLET_HEIGHT;
+
+      if(isCollision() != 0) {
         // Killed enemy so clean it up
         isBulletInFlight = 0;
         enemies[temp3].state = 1;
@@ -334,13 +401,6 @@ void enemyCollision(void) {
 
     temp4 += 4;
   }
-}
-
-void putCharInBackgroundVars(void) {
-  collisionX = newX;
-  collisionY = newY;
-  collisionWidth = CHARACTER_WIDTH;
-  collisionHeight = CHARACTER_HEIGHT;
 }
 
 char isBackgroundCollision(void) {

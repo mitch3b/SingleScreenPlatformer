@@ -54,8 +54,8 @@ unsigned char song;
 
 //Main character
 #define MAIN_CHAR_FIRST_SPRITE 0x00;
-#define CHARACTER_WIDTH 0x0F  // Technically 0x10 but use this for doing collision so save the -1 in each calculation
-#define CHARACTER_HEIGHT 0x0F // Same as above
+#define CHARACTER_WIDTH 0x08
+#define CHARACTER_HEIGHT 0x08
 unsigned char newX;
 unsigned char newY;
 void applyX(void);
@@ -77,9 +77,11 @@ void resetScroll (void);
 void initSprites(void);
 void preMovementUpdates(void);
 void postMovementUpdates(void);
+void takeHit(void);
+int isCollision(void); //TODO use char?
 void enemyCollision(void);
 void updateSprites(void);
-void putCharInBackgroundVars(void);
+void loadEnemies(void);
 char isBackgroundCollision(void);
 char isBackgroundCollisionMainChar(void);
 void loadCollisionFromNametables(void);
