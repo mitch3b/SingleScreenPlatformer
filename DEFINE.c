@@ -17,6 +17,10 @@
 #define B_BUTTON	0x40
 #define A_BUTTON	0x80
 
+#define BACKGROUND_EMPTY 0x00
+#define BACKGROUND_SOLID 0x01
+#define BACKGROUND_DEATH 0x02
+
 // Globals
 // our startup code initialized all values to zero
 #pragma bss-name(push, "ZEROPAGE")
@@ -84,6 +88,7 @@ void updateSprites(void);
 void loadEnemies(void);
 char isBackgroundCollision(void);
 char isBackgroundCollisionMainChar(void);
+char isBackgroundDeathMainChar(void);
 void loadCollisionFromNametables(void);
 
 char collisionX;

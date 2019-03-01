@@ -169,7 +169,18 @@ void loadCollisionFromNametables(void)
   for(tempInt = 0 ; tempInt < 960 ; tempInt++) {
     temp1 = *((unsigned char*)0x2007);
 
-    collision[tempInt] = (temp1 == 0x00 || temp1 == 0x20) ? 0x00 : 0x01;
+    switch(temp1) {
+      case 0x00: // Empty
+      case 0x20: // Door
+        collision[tempInt] = BACKGROUND_EMPTY;
+        break;
+      case 0x02: // Fire
+        collision[tempInt] = BACKGROUND_DEATH;
+        break;
+      default:
+        collision[tempInt] = BACKGROUND_SOLID;
+    }
+
     if(temp1 == 0x20) {
       spawnX = 8*(tempInt % 32);
       spawnY = 8*(tempInt/32);
@@ -235,7 +246,7 @@ void preMovementUpdates(void) {
       tempInt = 32*temp2 + temp1;
 
       // If we're hoving over an edge, turn around
-      if(collision[tempInt] == 0 || (SPRITES[temp4 + 3] % 8 == 0 && collision[tempInt - 31] != 0)) {
+      if(collision[tempInt] != BACKGROUND_SOLID || (SPRITES[temp4 + 3] % 8 == 0 && collision[tempInt - 31] == BACKGROUND_SOLID)) {
         enemies[temp3].enemyTimer = ENEMY_TURN_AROUND_TIME;
         enemies[temp3].enemyState = ENEMY_MOVING_LEFT;
       }
@@ -250,7 +261,7 @@ void preMovementUpdates(void) {
       tempInt = 32*temp2 + temp1;
 
       // If we're hoving over an edge, turn around
-      if(collision[tempInt] == 0 || (SPRITES[temp4 + 3] % 8 == 0 && collision[tempInt - 33] != 0)) {
+      if(collision[tempInt] != BACKGROUND_SOLID || (SPRITES[temp4 + 3] % 8 == 0 && collision[tempInt - 33] == BACKGROUND_SOLID)) {
         enemies[temp3].enemyTimer = ENEMY_TURN_AROUND_TIME;
         enemies[temp3].enemyState = ENEMY_MOVING_RIGHT;
       }
@@ -291,8 +302,6 @@ void applyX(void) {
 }
 
 void applyY(void) {
-
-  // TODO just checking against 0 allows a double jump at the peak
   if(yVelocity >=0 && yVelocity < VELOCITY_FACTOR && isFalling == 0 && (joypad1 & A_BUTTON) != 0 && (joypad1old & A_BUTTON) == 0) {
     yVelocity = JUMP_VELOCITY;
     jumpCount = MAX_JUMP_COUNT;
@@ -366,6 +375,10 @@ int isCollision(void) {
 }
 
 void enemyCollision(void) {
+  if(isBackgroundDeathMainChar() != 0) {
+    takeHit();
+  }
+
   temp4 = ENEMIES_SPRITE_INDEX;
   for(temp3 = 0 ; temp3 < NUM_ENEMIES ; ++temp3) {
     // Setup enemy
@@ -408,26 +421,26 @@ char isBackgroundCollision(void) {
   temp2 = collisionY >> 3;
   tempInt = 32*temp2 + temp1;
 
-  if(collision[tempInt] == 0) {
+  if(collision[tempInt] == BACKGROUND_EMPTY) {
     //More efficient ways than calculating all these
     temp1 = (collisionX + collisionWidth - 1) >> 3;
     temp2 = (collisionY) >> 3;
     tempInt = 32*temp2 + temp1;
-    if(collision[tempInt] != 0) {
+    if(collision[tempInt] != BACKGROUND_EMPTY) {
       return 1;
     }
 
     temp1 = (collisionX) >> 3;
     temp2 = (collisionY + collisionHeight - 1) >> 3;
     tempInt = 32*temp2 + temp1;
-    if(collision[tempInt] != 0) {
+    if(collision[tempInt] != BACKGROUND_EMPTY) {
       return 1;
     }
 
     temp1 = (collisionX + collisionWidth -1) >> 3;
     temp2 = (collisionY + collisionHeight - 1) >> 3;
     tempInt = 32*temp2 + temp1;
-    if(collision[tempInt] != 0) {
+    if(collision[tempInt] != BACKGROUND_EMPTY) {
       return 1;
     }
   }
@@ -444,16 +457,44 @@ char isBackgroundCollisionMainChar(void) {
   temp2 = newY >> 3;
   tempInt = 32*temp2 + temp1;
 
-  if(collision[tempInt] == 0) {
-    if((newX % 8 != 0) && collision[tempInt + 1] != 0) {
+  if(collision[tempInt] == BACKGROUND_EMPTY) {
+    if((newX % 8 != 0) && collision[tempInt + 1] == BACKGROUND_SOLID) {
       return 1;
     }
 
-    if((newY % 8 != 0) && collision[tempInt + 32] != 0) {
+    if((newY % 8 != 0) && collision[tempInt + 32] == BACKGROUND_SOLID) {
       return 1;
     }
 
-    if((newX % 8 != 0) && (newY % 8 != 0) && collision[tempInt + 33] != 0) {
+    if((newX % 8 != 0) && (newY % 8 != 0) && collision[tempInt + 33] == BACKGROUND_SOLID) {
+      return 1;
+    }
+  }
+  else {
+    return 1;
+  }
+
+  return 0;
+}
+
+//TODO might be a better way to incorporate this above, but it gets really
+//     corner casey for if you walk into both a solid AND death bc solid might
+//     stop your movement before you can hit the fire.
+char isBackgroundDeathMainChar(void) {
+  temp1 = newX >> 3;
+  temp2 = newY >> 3;
+  tempInt = 32*temp2 + temp1;
+
+  if(collision[tempInt] != BACKGROUND_DEATH) {
+    if((newX % 8 != 0) && collision[tempInt + 1] == BACKGROUND_DEATH) {
+      return 1;
+    }
+
+    if((newY % 8 != 0) && collision[tempInt + 32] == BACKGROUND_DEATH) {
+      return 1;
+    }
+
+    if((newX % 8 != 0) && (newY % 8 != 0) && collision[tempInt + 33] == BACKGROUND_DEATH) {
       return 1;
     }
   }
