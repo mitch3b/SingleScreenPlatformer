@@ -37,24 +37,30 @@ unsigned char isFalling;
 signed char isWalking;
 unsigned char isExploding;
 
+#define ENEMY_ID_WALKER 1
+#define ENEMY_ID_DROP 2
+
 //Enemy info
 typedef struct {
+  unsigned char idp;
   unsigned char startX;
   unsigned char startY;
   unsigned char enemyState;
   unsigned char enemyTimer;
-  unsigned char state; // 0 is alive, 6 is fully dead, in between is for explode animation
+  unsigned char state; // 0 is alive, 6 is fully dead, in between is for explode animation TODO make this part of enemyState
 } enemy_struct;
 
 #define NUM_ENEMIES 6
 enemy_struct enemies[NUM_ENEMIES];
 enemy_struct enemies2[NUM_ENEMIES] = {
-  {0x82, 0x80, 0x00, 0x00, 0x00},
-  {0x7D, 0xC0, 0x00, 0x00, 0x00},
-  {0x98, 0xA0, 0x00, 0x00, 0x00},
-  {0x80, 0x30, 0x00, 0x00, 0x00},
-  {0x10, 0x70, 0x00, 0x00, 0x00},
-  {0x30, 0xD8, 0x00, 0x00, 0x00}
+  {0x01, 0x82, 0x80, 0x00, 0x00, 0x00},
+  {0x01, 0x7D, 0xC0, 0x00, 0x00, 0x00},
+  {0x01, 0x98, 0xA0, 0x00, 0x00, 0x00},
+  {0x01, 0x80, 0x30, 0x00, 0x00, 0x00},
+  //{0x01, 0x10, 0x70, 0x00, 0x00, 0x00},
+  //{0x01, 0x30, 0xD8, 0x00, 0x00, 0x00},
+  {0x01, 0x38, 0xD8, 0x00, 0x00, 0x00},
+  {0x01, 0x48, 0xD8, 0x00, 0x00, 0x00},
 };
 
 //POWERUPS
@@ -397,7 +403,7 @@ void enemyCollision(void) {
          takeHit();
     }
 
-    if(isBulletInFlight == 1) {
+    if(isBulletInFlight == 1 && enemies[temp3].state == 0) {
       // Check against bullet
       temp1 = (SPRITES[POWERUP_SPRITE_INDEX + 6] == 0) ? BULLET_OFFSET_X : BULLET_OFFSET_X_LEFT;
       x2 = SPRITES[POWERUP_SPRITE_INDEX + 7] + temp1;
