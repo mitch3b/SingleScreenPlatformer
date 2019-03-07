@@ -52,7 +52,7 @@ typedef struct {
 
 #define NUM_ENEMIES 6
 enemy_struct enemies[NUM_ENEMIES];
-enemy_struct enemies2[NUM_ENEMIES] = {
+enemy_struct enemies2[6] = {
   {0x01, 0x82, 0x80, 0x00, 0x00, 0x00},
   {0x01, 0x7D, 0xC0, 0x00, 0x00, 0x00},
   {0x01, 0x98, 0xA0, 0x00, 0x00, 0x00},
@@ -516,6 +516,8 @@ void initSprites(void) {
   SPRITES[MAIN_CHAR_SPRITE_INDEX + 1] = MAIN_CHAR_FIRST_SPRITE; //sprite
   SPRITES[MAIN_CHAR_SPRITE_INDEX + 2] = 0x00; //attribute
   SPRITES[MAIN_CHAR_SPRITE_INDEX + 3] = spawnX; //X
+
+  isBulletInFlight = 0;
 
   temp4 = ENEMIES_SPRITE_INDEX;
   for(temp3 = 0 ; temp3 < NUM_ENEMIES ; ++temp3) {
