@@ -14,6 +14,21 @@
 #define ENEMY_MOVE_EVERY_X_FRAMES 3
 #define ENEMY_TURN_AROUND_TIME 60
 
+#define WALKER_WALKING 0
+#define WALKER_EXPLODING_START 1
+#define WALKER_EXPLODING_END 5
+#define WALKER_DEAD 6
+
+#define DROP_OFFSET_X 2
+#define DROP_OFFSET_Y 0
+#define DROP_HEIGHT 4
+#define DROP_WIDTH 3
+
+#define DROP_WAITING_TO_DROP 0
+#define DROP_DROPPING 1
+#define DROP_ON_GROUND 2
+#define DROP_MAX_WAIT_TO_DROP 60
+
 #pragma bss-name (push, "OAM")
 unsigned char SPRITES[256];
 #pragma bss-name (pop)
@@ -42,7 +57,7 @@ unsigned char isExploding;
 
 //Enemy info
 typedef struct {
-  unsigned char idp;
+  unsigned char id;
   unsigned char startX;
   unsigned char startY;
   unsigned char enemyState;
@@ -51,16 +66,13 @@ typedef struct {
 } enemy_struct;
 
 #define NUM_ENEMIES 6
-enemy_struct enemies[NUM_ENEMIES];
-enemy_struct enemies2[6] = {
-  {0x01, 0x82, 0x80, 0x00, 0x00, 0x00},
-  {0x01, 0x7D, 0xC0, 0x00, 0x00, 0x00},
-  {0x01, 0x98, 0xA0, 0x00, 0x00, 0x00},
-  {0x01, 0x80, 0x30, 0x00, 0x00, 0x00},
-  //{0x01, 0x10, 0x70, 0x00, 0x00, 0x00},
-  //{0x01, 0x30, 0xD8, 0x00, 0x00, 0x00},
-  {0x01, 0x38, 0xD8, 0x00, 0x00, 0x00},
-  {0x01, 0x48, 0xD8, 0x00, 0x00, 0x00},
+enemy_struct enemies[NUM_ENEMIES] = {
+  {ENEMY_ID_WALKER, 0x98, 0xA0, 0x00, 0x00, 0x00},
+  {ENEMY_ID_DROP,   0x58, 0x48, 0x00, 0x00, 0x00},
+  {ENEMY_ID_WALKER, 0x10, 0x70, 0x00, 0x00, 0x00},
+  {ENEMY_ID_WALKER, 0x30, 0xD8, 0x00, 0x00, 0x00},
+  {ENEMY_ID_WALKER, 0x38, 0xD8, 0x00, 0x00, 0x00},
+  {ENEMY_ID_WALKER, 0x48, 0xD8, 0x00, 0x00, 0x00},
 };
 
 //POWERUPS
@@ -83,9 +95,11 @@ unsigned char isBulletInFlight;
 #pragma bss-name (push, "BSS")
 
 void loadEnemies(void) {
+  return;
+  /*
   for(temp1 = 0 ; temp1 < NUM_ENEMIES ; ++temp1) {
       enemies[temp1] = enemies2[temp1];
-  }
+  }*/
 }
 
 // 32 x 30
@@ -164,8 +178,7 @@ void main (void) {
 }
 
 //Would be better to do in asm (like in UnCollision) but haven't figured out a good way yet
-void loadCollisionFromNametables(void)
-{
+void loadCollisionFromNametables(void) {
   PPU_ADDRESS = 0x20; // address of nametable #0
   PPU_ADDRESS = 0x00;
 
@@ -178,6 +191,7 @@ void loadCollisionFromNametables(void)
     switch(temp1) {
       case 0x00: // Empty
       case 0x20: // Door
+      case 0x21:
         collision[tempInt] = BACKGROUND_EMPTY;
         break;
       case 0x02: // Fire
@@ -224,58 +238,102 @@ void preMovementUpdates(void) {
   // if enemy is platform walker
   temp4 = ENEMIES_SPRITE_INDEX;
   for(temp3 = 0 ; temp3 < NUM_ENEMIES ; ++temp3) {
-    if(enemies[temp3].state == 6) {
-        SPRITES[temp4 + 3]  = 0;
-        SPRITES[temp4]  = 0;
-    }
-    else if(enemies[temp3].state > 0) {
-      SPRITES[temp4 + 1] = 0x0A + enemies[temp3].state;
-      if(Frame_Count % 8 == 0) {
-         enemies[temp3].state += 1;
+    if(enemies[temp3].id == ENEMY_ID_WALKER) {
+      if(enemies[temp3].state == WALKER_DEAD) {
+          SPRITES[temp4 + 3]  = 0;
+          SPRITES[temp4]  = 0;
+      }
+      else if(enemies[temp3].state > WALKER_WALKING) { // 1 - 5 is for exploding
+        SPRITES[temp4 + 1] = 0x0A + enemies[temp3].state;
+        if(Frame_Count % 8 == 0) {
+           enemies[temp3].state += 1;
+        }
+      }
+      else if(enemies[temp3].enemyTimer > 0) { // Else is walking
+        enemies[temp3].enemyTimer -= 1;
+
+        if(enemies[temp3].enemyTimer == 0) {
+          //Once enemy has stopped "waiting at an edge", face the direction that we're gonna start moving in
+          SPRITES[temp4 + 2] = (enemies[temp3].enemyState == ENEMY_MOVING_LEFT) ? 0x43 : 0x03;
+        }
+      }
+      else if(enemies[temp3].enemyState == ENEMY_MOVING_RIGHT) {
+        if(Frame_Count % ENEMY_MOVE_EVERY_X_FRAMES == 0) {
+          SPRITES[temp4 + 3] += 1;
+        }
+
+        temp1 = (SPRITES[temp4 + 3] + 4) >> 3;
+        temp2 = (SPRITES[temp4] + 9) >> 3;
+        tempInt = 32*temp2 + temp1;
+
+        // If we're hoving over an edge, turn around
+        if(collision[tempInt] != BACKGROUND_SOLID || (SPRITES[temp4 + 3] % 8 == 0 && collision[tempInt - 31] == BACKGROUND_SOLID)) {
+          enemies[temp3].enemyTimer = ENEMY_TURN_AROUND_TIME;
+          enemies[temp3].enemyState = ENEMY_MOVING_LEFT;
+        }
+      }
+      else if(enemies[temp3].enemyState == ENEMY_MOVING_LEFT) {
+        if(Frame_Count % ENEMY_MOVE_EVERY_X_FRAMES == 0) {
+          SPRITES[temp4 + 3] -= 1;
+        }
+
+        temp1 = (SPRITES[temp4 + 3] + 3) >> 3;
+        temp2 = (SPRITES[temp4] + 9) >> 3;
+        tempInt = 32*temp2 + temp1;
+
+        // If we're hoving over an edge, turn around
+        if(collision[tempInt] != BACKGROUND_SOLID || (SPRITES[temp4 + 3] % 8 == 0 && collision[tempInt - 33] == BACKGROUND_SOLID)) {
+          enemies[temp3].enemyTimer = ENEMY_TURN_AROUND_TIME;
+          enemies[temp3].enemyState = ENEMY_MOVING_RIGHT;
+        }
+      }
+
+      if(enemies[temp3].state == WALKER_WALKING) {
+        SPRITES[temp4 + 1] = 0x30 + (Frame_Count/4 % 2);
       }
     }
-    else if(enemies[temp3].enemyTimer > 0) {
-      enemies[temp3].enemyTimer -= 1;
+    else if(enemies[temp3].id == ENEMY_ID_DROP) {
+      if(enemies[temp3].state == DROP_WAITING_TO_DROP) {
+        ++enemies[temp3].enemyState;
 
-      if(enemies[temp3].enemyTimer == 0) {
-        //Once enemy has stopped "waiting at an edge", face the direction that we're gonna start moving in
-        SPRITES[temp4 + 2] = (enemies[temp3].enemyState == ENEMY_MOVING_LEFT) ? 0x43 : 0x03;
+        if(enemies[temp3].enemyState == DROP_MAX_WAIT_TO_DROP) {
+          SPRITES[temp4 + 3] = enemies[temp3].startX;
+          SPRITES[temp4] = enemies[temp3].startY;
+          enemies[temp3].state = DROP_DROPPING;
+          enemies[temp3].enemyState = 0;
+        }
+      }
+      else if (enemies[temp3].state == DROP_DROPPING) {
+        SPRITES[temp4 + 1] = 0x40;
+        //Drop a pixel a frame TODO this should have accelleration, etc
+        SPRITES[temp4] += 1; //If you change this, need to change where DROP_ON_GROUND gets placed below
+
+        temp1 = (SPRITES[temp4 + 3]) >> 3; // x tile
+        temp2 = (SPRITES[temp4] + 7) >> 3; // bottom pixel's y tile
+        tempInt = 32*temp2 + temp1;
+
+        // If we're hoving over an edge, turn around
+        if(collision[tempInt] == BACKGROUND_SOLID) {
+          enemies[temp3].state = DROP_ON_GROUND;
+          SPRITES[temp4] += 2; //Adjust so sprite is on tile below.
+        }
+      }
+      else if (enemies[temp3].state == DROP_ON_GROUND) {
+        SPRITES[temp4 + 1] = 0x43;
+        ++enemies[temp3].enemyState;
+
+        //TODO use a dif constant
+        if(enemies[temp3].enemyState == DROP_MAX_WAIT_TO_DROP) {
+          enemies[temp3].state = DROP_WAITING_TO_DROP;
+          enemies[temp3].enemyState = 0;
+          //Remove for now
+          SPRITES[temp4 + 3] = 0;
+          SPRITES[temp4] = 0;
+          SPRITES[temp4 + 1] = 0x02; //Blank
+        }
       }
     }
-    else if(enemies[temp3].enemyState == ENEMY_MOVING_RIGHT) {
-      if(Frame_Count % ENEMY_MOVE_EVERY_X_FRAMES == 0) {
-        SPRITES[temp4 + 3] += 1;
-      }
 
-      temp1 = (SPRITES[temp4 + 3] + 4) >> 3;
-      temp2 = (SPRITES[temp4] + 9) >> 3;
-      tempInt = 32*temp2 + temp1;
-
-      // If we're hoving over an edge, turn around
-      if(collision[tempInt] != BACKGROUND_SOLID || (SPRITES[temp4 + 3] % 8 == 0 && collision[tempInt - 31] == BACKGROUND_SOLID)) {
-        enemies[temp3].enemyTimer = ENEMY_TURN_AROUND_TIME;
-        enemies[temp3].enemyState = ENEMY_MOVING_LEFT;
-      }
-    }
-    else if(enemies[temp3].enemyState == ENEMY_MOVING_LEFT) {
-      if(Frame_Count % ENEMY_MOVE_EVERY_X_FRAMES == 0) {
-        SPRITES[temp4 + 3] -= 1;
-      }
-
-      temp1 = (SPRITES[temp4 + 3] + 3) >> 3;
-      temp2 = (SPRITES[temp4] + 9) >> 3;
-      tempInt = 32*temp2 + temp1;
-
-      // If we're hoving over an edge, turn around
-      if(collision[tempInt] != BACKGROUND_SOLID || (SPRITES[temp4 + 3] % 8 == 0 && collision[tempInt - 33] == BACKGROUND_SOLID)) {
-        enemies[temp3].enemyTimer = ENEMY_TURN_AROUND_TIME;
-        enemies[temp3].enemyState = ENEMY_MOVING_RIGHT;
-      }
-    }
-
-    if(enemies[temp3].state == 0) {
-      SPRITES[temp4 + 1] = 0x30 + (Frame_Count/4 % 2);
-    }
     temp4 += 4;
   }
 }
@@ -387,11 +445,34 @@ void enemyCollision(void) {
 
   temp4 = ENEMIES_SPRITE_INDEX;
   for(temp3 = 0 ; temp3 < NUM_ENEMIES ; ++temp3) {
-    // Setup enemy
-    x1 = SPRITES[temp4 + 3];
-    y1 = SPRITES[temp4];
-    width1 = 8;
-    height1 = 8;
+    if(enemies[temp3].id == ENEMY_ID_DROP) {
+      if(enemies[temp3].state != DROP_DROPPING) {
+        //TODO continue should work, but maybe only exiting if loop?
+        x1 = 0;
+        y1 = 0;
+        width1 = 1;
+        height1 = 1;
+      }
+      else {
+        x1 = SPRITES[temp4 + 3] + DROP_OFFSET_X;
+        y1 = SPRITES[temp4] + DROP_OFFSET_Y;
+
+        width1 = DROP_WIDTH;
+        height1 = DROP_HEIGHT;
+      }
+    }
+    else if(enemies[temp3].id == ENEMY_ID_WALKER) {
+      // Setup enemy
+      x1 = SPRITES[temp4 + 3];
+      y1 = SPRITES[temp4];
+      //TODO adjust for drops
+      width1 = 8;
+      height1 = 8;
+    }
+    else {
+      //Unsupported enemy id
+      continue;
+    }
 
     // Check against player
     x2 = SPRITES[MAIN_CHAR_SPRITE_INDEX + 3];
@@ -399,24 +480,28 @@ void enemyCollision(void) {
     width2 = CHARACTER_WIDTH;
     height2 = CHARACTER_HEIGHT;
 
-    if(isCollision() != 0) {
+    if(isCollision() != 0) { //TODO for drops, only if falling
          takeHit();
     }
 
-    if(isBulletInFlight == 1 && enemies[temp3].state == 0) {
-      // Check against bullet
-      temp1 = (SPRITES[POWERUP_SPRITE_INDEX + 6] == 0) ? BULLET_OFFSET_X : BULLET_OFFSET_X_LEFT;
-      x2 = SPRITES[POWERUP_SPRITE_INDEX + 7] + temp1;
-      y2 = SPRITES[POWERUP_SPRITE_INDEX + 4] + BULLET_OFFSET_Y;
-      width2 = BULLET_WIDTH;
-      height2 = BULLET_HEIGHT;
+    if(enemies[temp3].id == ENEMY_ID_WALKER) {
+      //TODO might be able to share some of this with dropper
+      if(isBulletInFlight == 1 && enemies[temp3].state == WALKER_WALKING) {
+        // Check against bullet
+        temp1 = (SPRITES[POWERUP_SPRITE_INDEX + 6] == 0) ? BULLET_OFFSET_X : BULLET_OFFSET_X_LEFT;
+        x2 = SPRITES[POWERUP_SPRITE_INDEX + 7] + temp1;
+        y2 = SPRITES[POWERUP_SPRITE_INDEX + 4] + BULLET_OFFSET_Y;
+        width2 = BULLET_WIDTH;
+        height2 = BULLET_HEIGHT;
 
-      if(isCollision() != 0) {
-        // Killed enemy so clean it up
-        isBulletInFlight = 0;
-        enemies[temp3].state = 1;
+        if(isCollision() != 0) {
+          // Killed enemy so clean it up
+          isBulletInFlight = 0;
+          enemies[temp3].state = WALKER_EXPLODING_START;
+        }
       }
     }
+    // Drops don't interact with enemies so nothing to do here
 
     temp4 += 4;
   }
@@ -522,9 +607,15 @@ void initSprites(void) {
   temp4 = ENEMIES_SPRITE_INDEX;
   for(temp3 = 0 ; temp3 < NUM_ENEMIES ; ++temp3) {
     SPRITES[temp4] = enemies[temp3].startY;
-    SPRITES[temp4 + 1] = 0x30; //sprite
     SPRITES[temp4 + 2] = 0x03; //attribute
     SPRITES[temp4 + 3] = enemies[temp3].startX;
+
+    if(enemies[temp3].id == ENEMY_ID_WALKER) {
+      SPRITES[temp4 + 1] = 0x30; //sprite
+    }
+    else if(enemies[temp3].id == ENEMY_ID_DROP) {
+      SPRITES[temp4 + 1] = 0x02; //sprite
+    }
 
     temp4 += 4;
   }
